@@ -1,14 +1,10 @@
 export type ServerTier = "paid" | "free";
 
 export interface ServerRecord {
-  /** The Minecraft hostname players connect to, e.g. "survival.kibihost.com" */
   serverAddress: string;
   tier: ServerTier;
-  /** Which node this server's container currently lives on. */
   nodeId: string;
-  /** Whatever id Wings uses to identify the container/server on that node. */
-  wingsServerId: string;
-  /** The server's configured memory limit, for the pre-start capacity check. */
+  calagopusServerId: string;
   memoryMb: number;
 }
 

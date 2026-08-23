@@ -6,10 +6,9 @@ function required(name: string): string {
 
 export const config = {
   port: Number(process.env.PORT ?? 3001),
-  mcRouterApiUrl: required(process.env.MC_ROUTER_API_URL),
-  scaleWebhookSecret: required(process.env.SCALE_WEBHOOK_SECRET),
-  wingsApiUrl: required(process.env.WINGS_API_URL),
-  wingsApiToken: required(process.env.WINGS_API_TOKEN),
-  panelApiUrl: required(process.env.PANEL_API_URL),
-  panelApiToken: required(process.env.PANEL_API_TOKEN),
+  mcRouterApiUrl: required("MC_ROUTER_API_URL"),
+  scaleWebhookSecret: required("SCALE_WEBHOOK_SECRET"),
+  mongodbUri: required("MONGODB_URI"),
+  panelApiUrl: required("PANEL_API_URL"),
+  panelApiToken: required("PANEL_API_TOKEN"),
 };

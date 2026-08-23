@@ -1,0 +1,21 @@
+services:
+  scaler:
+    build: .
+    container_name: mc-scaler
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+  router:
+    image: itzg/mc-router:latest
+    restart: unless-stopped
+    container_name: mc-router
+    ports:
+      - "25565:25565"
+    environment:
+      AUTO_SCALE_WEBHOOK_URL: http://scaler:3001/scale
+      AUTO_SCALE_WEBHOOK_HEADERS: "Authorization: Bearer secrettoken"
+      AUTO_SCALE_DOWN_AFTER: 10m
+      AUTO_SCALE_ASLEEP_MOTD: "Server is sleeping. Join again to wake it up!"
+      AUTO_SCALE_LOADING_MOTD: "Server is starting. Please wait..."
+      DEBUG: true

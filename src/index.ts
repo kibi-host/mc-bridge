@@ -1,18 +1,16 @@
 import "dotenv/config";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { config } from "./config.js";
+import { config } from "./config";
+import { connectDb } from "./db";
 import { handleScaleWebhook } from "./scaleHandler";
 import { onServerProvisioned, onServerDeprovisioned } from "./provisioning";
 import type { ScaleWebhookPayload } from "./types";
 
+await connectDb();
+
 const app = new Hono();
 
-// mc-router calls this on every scale-up/scale-down transition for every
-// route registered on it (paid and free alike — see scaleHandler.ts for
-// where the tiers diverge). Configure mc-router with:
-//   -auto-scale-webhook-url http://this-service:3001/scale
-//   -auto-scale-webhook-headers "Authorization=Bearer <SCALE_WEBHOOK_SECRET>"
 app.post("/scale", async (c) => {
   const auth = c.req.header("Authorization");
   if (auth !== `Bearer ${config.scaleWebhookSecret}`) {
@@ -28,11 +26,17 @@ app.post("/scale", async (c) => {
   return c.body(null, result.status as 200);
 });
 
-// Optional convenience endpoints if provisioning runs in a different
-// process than this service — otherwise call provisioning.ts directly.
 app.post("/internal/routes", async (c) => {
-  const { serverAddress, backend } = await c.req.json<{ serverAddress: string; backend: string }>();
-  await onServerProvisioned(serverAddress, backend);
+  const record = await c.req.json<{
+    serverAddress: string;
+    backend: string;
+    tier: "paid" | "free";
+    nodeId: string;
+    calagopusServerId: string;
+    memoryMb: number;
+  }>();
+
+  await onServerProvisioned(record);
   return c.body(null, 204);
 });
 
@@ -41,8 +45,8 @@ app.delete("/internal/routes/:serverAddress", async (c) => {
   return c.body(null, 204);
 });
 
-app.get("/health", (c) => c.text("ok"));
+app.get("/", (c) => c.text("ok"));
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
-  console.log(`Bridge listening on :${info.port}`);
+  console.log(`Scaler listening on ${info.port}`);
 });

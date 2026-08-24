@@ -1,10 +1,6 @@
 import { config } from "../config";
+import { ServerRecordModel } from "../ServerRecord";
 
-/**
- * Registers (or updates) a route on mc-router.
- * Call this from your provisioning flow right after a server is created
- * and its node/port are known — regardless of which tier it is.
- */
 export async function registerRoute(
   serverAddress: string,
   backend: string,
@@ -21,9 +17,6 @@ export async function registerRoute(
   }
 }
 
-/**
- * Removes a route. Call this when a server is deleted, regardless of tier.
- */
 export async function deleteRoute(serverAddress: string): Promise<void> {
   const res = await fetch(
     `${config.mcRouterApiUrl}/routes/${encodeURIComponent(serverAddress)}`,
@@ -31,7 +24,7 @@ export async function deleteRoute(serverAddress: string): Promise<void> {
       method: "DELETE",
     },
   );
-  // mc-router returns 404 if the route is already gone — treat that as fine.
+  // mc-router returns 404 if the route is already gone
   if (!res.ok && res.status !== 404) {
     throw new Error(
       `mc-router deleteRoute failed (${res.status}): ${await res.text()}`,
@@ -54,4 +47,25 @@ export async function listRoutes(): Promise<
     string,
     { backend: string; scalingTarget: string }
   >;
+}
+
+export async function syncRoutes(): Promise<void> {
+  const records = await ServerRecordModel.find().lean();
+
+  console.log(`Syncing ${records.length} routes to mc-router...`);
+
+  for (const record of records) {
+    try {
+      await registerRoute(record.serverAddress, record.backend);
+
+      console.log(`Registered ${record.serverAddress} → ${record.backend}`);
+    } catch (err) {
+      console.error(
+        `Failed to register ${record.serverAddress} → ${record.backend}:`,
+        err,
+      );
+    }
+  }
+
+  console.log("Route sync complete");
 }

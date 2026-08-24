@@ -6,19 +6,11 @@ export async function removeServerRecord(serverAddress: string): Promise<void> {
 }
 
 export async function saveServerRecord(record: ServerRecord): Promise<void> {
-  const existing = await ServerRecordModel.findOne({
-    serverAddress: record.serverAddress,
-  });
-  if (existing) {
-    existing.tier = record.tier;
-    existing.nodeId = record.nodeId;
-    existing.calagopusServerId = record.calagopusServerId;
-    existing.memoryMb = record.memoryMb;
-    await existing.save();
-  } else {
-    const newRecord = new ServerRecordModel(record);
-    await newRecord.save();
-  }
+  await ServerRecordModel.findOneAndUpdate(
+    { serverAddress: record.serverAddress },
+    { $set: record },
+    { upsert: true, runValidators: true, setDefaultsOnInsert: true },
+  );
 }
 
 export async function getServerRecord(
@@ -31,6 +23,7 @@ export async function getServerRecord(
     tier: doc.tier as ServerRecord["tier"],
     nodeId: doc.nodeId,
     calagopusServerId: doc.calagopusServerId,
+    backend: doc.backend,
     memoryMb: doc.memoryMb,
   };
 }

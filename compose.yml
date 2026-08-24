@@ -13,8 +13,9 @@ services:
     ports:
       - "25565:25565"
     environment:
+      API_BINDING: ":8080"
       AUTO_SCALE_WEBHOOK_URL: http://scaler:3001/scale
-      AUTO_SCALE_WEBHOOK_HEADERS: "Authorization: Bearer secrettoken"
+      AUTO_SCALE_WEBHOOK_HEADERS: "Authorization=Bearer ${SCALE_WEBHOOK_SECRET}"
       AUTO_SCALE_DOWN_AFTER: 10m
       AUTO_SCALE_ASLEEP_MOTD: "Server is sleeping. Join again to wake it up!"
       AUTO_SCALE_LOADING_MOTD: "Server is starting. Please wait..."

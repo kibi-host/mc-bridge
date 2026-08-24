@@ -1,14 +1,8 @@
 import { registerRoute, deleteRoute } from "./clients/mcRouter";
 import { saveServerRecord, removeServerRecord } from "./serverReg";
+import type { ServerRecord } from "./types";
 
-export async function onServerProvisioned(record: {
-  serverAddress: string;
-  backend: string;
-  tier: "paid" | "free";
-  nodeId: string;
-  calagopusServerId: string;
-  memoryMb: number;
-}): Promise<void> {
+export async function onServerProvisioned(record: ServerRecord): Promise<void> {
   await saveServerRecord(record);
   await registerRoute(record.serverAddress, record.backend);
 }

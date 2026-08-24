@@ -5,8 +5,12 @@ const serverRecordSchema = new Schema({
   tier: { type: String, enum: ["paid", "free"], required: true },
   nodeId: { type: String, required: true },
   calagopusServerId: { type: String, required: true },
+  backend: { type: String, required: true },
   memoryMb: { type: Number, required: true },
 });
 
 export type ServerRecordDoc = InferSchemaType<typeof serverRecordSchema>;
-export const ServerRecordModel = model("Server.Record", serverRecordSchema);
+export const ServerRecordModel = model(
+  "Records",
+  serverRecordSchema,
+);

@@ -5,6 +5,7 @@ function required(name: string): string {
 }
 
 export const config = {
+  debug: process.env.DEBUG,
   port: Number(process.env.PORT ?? 3001),
   mcRouterApiUrl: required("MC_ROUTER_API_URL"),
   scaleWebhookSecret: required("SCALE_WEBHOOK_SECRET"),

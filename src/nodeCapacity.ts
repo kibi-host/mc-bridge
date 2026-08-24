@@ -11,7 +11,6 @@ export async function hasCapacity(
     },
   );
   if (!res.ok) {
-    // Fail closed: if we can't confirm there's room, don't gamble on it.
     return false;
   }
   const body = (await res.json()) as {

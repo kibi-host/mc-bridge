@@ -1,10 +1,12 @@
-import { getServerRecord } from "./serverReg";
+import { getServerRecord } from "./registery/serverReg";
 import {
   startServer,
   stopServer,
   InsufficientCapacityError,
+  NodeStartInProgressError,
 } from "./clients/panel";
 import type { ScaleWebhookPayload, ScaleWebhookResult } from "./types";
+import { hasCapacity } from "./nodeCapacity";
 
 export async function handleScaleWebhook(
   payload: ScaleWebhookPayload,
@@ -25,10 +27,16 @@ export async function handleScaleWebhook(
 
   if (payload.action === "up") {
     try {
+      const ok = await hasCapacity(record.nodeId, record.memoryMb);
+
+      if (!ok) {
+        return { status: 503 };
+      }
       const backend = await startServer(record);
+
       return { status: 200, backend };
     } catch (err) {
-      if (err instanceof InsufficientCapacityError) {
+      if (err instanceof InsufficientCapacityError || err instanceof NodeStartInProgressError) {
         return { status: 503 };
       }
       throw err;

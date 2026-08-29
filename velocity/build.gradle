@@ -1,0 +1,26 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.queuevelocity'
+version = '0.1.0'
+
+repositories {
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+    maven { url = 'https://maven.elytrium.net/repo/' }
+}
+
+dependencies {
+    compileOnly 'com.velocitypowered:velocity-api:4.1.0-SNAPSHOT'
+    annotationProcessor 'com.velocitypowered:velocity-api:4.1.0-SNAPSHOT'
+    compileOnly 'net.elytrium.limboapi:api:1.1.26'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    archiveBaseName = 'queue-velocity'
+}

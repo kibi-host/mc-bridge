@@ -1,5 +1,5 @@
 import { config } from "../config";
-import { ServerRecordModel } from "../ServerRecord";
+import { ServerRecordModel } from "../registery/ServerRecord";
 
 export async function registerRoute(
   serverAddress: string,

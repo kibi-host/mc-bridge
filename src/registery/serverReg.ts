@@ -1,5 +1,5 @@
 import { ServerRecordModel } from "./ServerRecord";
-import type { ServerRecord } from "./types";
+import type { ServerRecord } from "../types";
 
 export async function removeServerRecord(serverAddress: string): Promise<void> {
   await ServerRecordModel.deleteOne({ serverAddress });

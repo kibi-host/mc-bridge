@@ -10,8 +10,6 @@ services:
     image: itzg/mc-router:latest
     restart: unless-stopped
     container_name: mc-router
-    ports:
-      - "25565:25565"
     environment:
       API_BINDING: ":8080"
       AUTO_SCALE_WEBHOOK_URL: http://scaler:3001/scale
@@ -20,3 +18,23 @@ services:
       AUTO_SCALE_ASLEEP_MOTD: "Server is sleeping. Join again to wake it up!"
       AUTO_SCALE_LOADING_MOTD: "Server is starting. Please wait..."
       DEBUG: true
+  velocity:
+    build:
+      context: ./velocity
+    container_name: mc-velocity
+    restart: unless-stopped
+    depends_on:
+      - scaler
+      - router
+    ports:
+      - "25565:25565"
+    environment:
+      TYPE: VELOCITY
+      VELOCITY_VERSION: latest
+      QUEUE_API_SECRET: ${QUEUE_API_SECRET}
+    volumes:
+      - velocity-data:/server
+      - ./velocity/config/velocity.toml:/config/velocity.toml:ro
+      - ./velocity/config/queue-velocity.properties:/config/plugins/queue-velocity.properties:ro
+volumes:
+  velocity-data:

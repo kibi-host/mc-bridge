@@ -1,13 +1,16 @@
 import "dotenv/config";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { serve } from "@hono/node-server";
 import { config } from "./config";
 import { connectDb } from "./db";
 import { handleScaleWebhook } from "./scaleHandler";
-import { onServerProvisioned, onServerDeprovisioned } from "./provisioning";
+import { onServerProvisioned, onServerDeprovisioned } from "./registery/provisioning";
 import type { ScaleWebhookPayload, ServerRecord } from "./types";
 import { syncRoutes } from "./clients/mcRouter";
+import { cancelQueueEntry, createOrResumeQueueEntry, getQueueState } from "./queue/queueService";
+import { startQueueScheduler } from "./queue/queueScheduler";
+import { getServerRecord } from "./registery/serverReg";
 
 await connectDb();
 
@@ -18,6 +21,7 @@ try {
 } catch (err) {
   console.error("[mc-scaler] Failed to sync routes:", err);
 }
+startQueueScheduler();
 
 const REQUIRED_RECORD_FIELDS: (keyof ServerRecord)[] = [
   "serverAddress",
@@ -86,6 +90,53 @@ app.post("/internal/routes", async (c) => {
 app.delete("/internal/routes/:serverAddress", async (c) => {
   await onServerDeprovisioned(c.req.param("serverAddress"));
   return c.body(null, 204);
+});
+
+function queueInput(body: unknown): { serverAddress: string; playerUuid: string } {
+  if (typeof body !== "object" || body === null) {
+    throw new HTTPException(400, { message: "Request body must be a JSON object" });
+  }
+  const { serverAddress, playerUuid } = body as Record<string, unknown>;
+  if (typeof serverAddress !== "string" || !serverAddress.trim()) {
+    throw new HTTPException(400, { message: "serverAddress must be a non-empty string" });
+  }
+  if (typeof playerUuid !== "string" || !playerUuid.trim()) {
+    throw new HTTPException(400, { message: "playerUuid must be a non-empty string" });
+  }
+  return { serverAddress: serverAddress.trim(), playerUuid: playerUuid.trim().toLowerCase() };
+}
+
+function authorizeQueue(c: Context): void {
+  if (c.req.header("Authorization") !== `Bearer ${config.queueApiSecret}`) {
+    throw new HTTPException(401, { message: "Unauthorized queue request" });
+  }
+}
+
+app.post("/queue", async (c) => {
+  authorizeQueue(c);
+  const input = queueInput(await c.req.json());
+  const record = await getServerRecord(input.serverAddress);
+  if (!record) return c.json({ message: "Unknown server" }, 404);
+  if (record.tier !== "free") {
+    return c.json({ message: "Only free-tier servers may be queued" }, 409);
+  }
+  const entry = await createOrResumeQueueEntry(input.serverAddress, input.playerUuid);
+  const state = await getQueueState(entry.queueId, config.queueDefaultStartupSeconds);
+  return c.json(state, 201);
+});
+
+app.get("/queue/:queueId", async (c) => {
+  authorizeQueue(c);
+  const state = await getQueueState(c.req.param("queueId"), config.queueDefaultStartupSeconds);
+  return state ? c.json(state) : c.json({ message: "Queue entry not found" }, 404);
+});
+
+app.delete("/queue/:queueId", async (c) => {
+  authorizeQueue(c);
+  const entry = await cancelQueueEntry(c.req.param("queueId"));
+  if (!entry) return c.json({ message: "Queue entry not found or is no longer active" }, 404);
+  const state = await getQueueState(entry.queueId, config.queueDefaultStartupSeconds);
+  return c.json(state);
 });
 
 app.get("/", (c) => c.text("ok"));

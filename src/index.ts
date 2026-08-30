@@ -120,7 +120,7 @@ app.post("/queue", async (c) => {
   if (record.tier !== "free") {
     return c.json({ message: "Only free-tier servers may be queued" }, 409);
   }
-  const entry = await createOrResumeQueueEntry(input.serverAddress, input.playerUuid);
+  const entry = await createOrResumeQueueEntry(input.serverAddress, record.nodeId, input.playerUuid);
   const state = await getQueueState(entry.queueId, config.queueDefaultStartupSeconds);
   return c.json(state, 201);
 });

@@ -1,6 +1,7 @@
 package com.queuevelocity;
 
 import com.velocitypowered.api.proxy.Player;
+import net.elytrium.limboapi.api.player.LimboPlayer;
 import net.kyori.adventure.bossbar.BossBar;
 
 final class QueueSession {
@@ -9,6 +10,7 @@ final class QueueSession {
   final String queueId;
   volatile QueueState state;
   volatile BossBar bossBar;
+  volatile LimboPlayer limboPlayer;
 
   QueueSession(Player player, String serverAddress, String queueId, QueueState state) {
     this.player = player;

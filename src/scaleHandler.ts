@@ -7,6 +7,7 @@ import {
 } from "./clients/panel";
 import type { ScaleWebhookPayload, ScaleWebhookResult } from "./types";
 import { hasCapacity } from "./nodeCapacity";
+import { isNodeBusy } from "./queue/queueService";
 
 export async function handleScaleWebhook(
   payload: ScaleWebhookPayload,
@@ -26,6 +27,14 @@ export async function handleScaleWebhook(
   }
 
   if (payload.action === "up") {
+    // If someone else is already waiting/starting on this node, don't let a
+    // fresh connection race ahead of them for the freed capacity - kick them
+    // into the same queue instead. The background scheduler in
+    // queueScheduler.ts processes waiting entries in strict FIFO order.
+    if (await isNodeBusy(record.nodeId)) {
+      return { status: 503 };
+    }
+
     try {
       const ok = await hasCapacity(record.nodeId, record.memoryMb);
 

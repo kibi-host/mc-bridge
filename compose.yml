@@ -19,6 +19,7 @@ services:
       AUTO_SCALE_LOADING_MOTD: "Server is starting. Please wait..."
       DEBUG: true
   velocity:
+    # image: itzg/mc-proxy:java25
     build:
       context: ./velocity
     container_name: mc-velocity
@@ -31,10 +32,10 @@ services:
     environment:
       TYPE: VELOCITY
       VELOCITY_VERSION: latest
+      DEBUG: "false"
+      SKIP_DOWNLOAD_DEFAULTS: "true"
       QUEUE_API_SECRET: ${QUEUE_API_SECRET}
     volumes:
-      - velocity-data:/server
-      - ./velocity/config/velocity.toml:/config/velocity.toml:ro
-      - ./velocity/config/queue-velocity.properties:/config/plugins/queue-velocity.properties:ro
+      - velocity:/server
 volumes:
-  velocity-data:
+  velocity: {}

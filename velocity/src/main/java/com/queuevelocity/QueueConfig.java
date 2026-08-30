@@ -7,7 +7,7 @@ import java.nio.file.Path;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
-record QueueConfig(String scalerUrl, String apiSecret, String routerServer, String limboServer,
+record QueueConfig(String scalerUrl, String apiSecret, String routerServer, String limboName,
     long pollIntervalSeconds, long disconnectGraceSeconds, Pattern unavailablePattern) {
   static QueueConfig load(Path dataDirectory) throws IOException {
     Files.createDirectories(dataDirectory);
@@ -25,7 +25,7 @@ record QueueConfig(String scalerUrl, String apiSecret, String routerServer, Stri
     String secret = required(properties, "queue-api-secret");
 
     return new QueueConfig(trimTrailingSlash(required(properties, "scaler-url")), secret,
-        properties.getProperty("router-server", "router"), properties.getProperty("limbo-server", "limbo"),
+        properties.getProperty("router-server", "router"), properties.getProperty("limbo-name", "queue"),
         Long.parseLong(properties.getProperty("poll-interval-seconds", "5")),
         Long.parseLong(properties.getProperty("disconnect-grace-seconds", "60")),
         Pattern.compile(properties.getProperty("unavailable-message-pattern", ".*")));

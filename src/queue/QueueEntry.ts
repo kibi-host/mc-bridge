@@ -13,6 +13,11 @@ const queueEntrySchema = new Schema(
       required: true,
       index: true,
     },
+    nodeId: {
+      type: String,
+      required: true,
+      index: true,
+    },
     playerUuid: {
       type: String,
       required: true,
@@ -54,6 +59,7 @@ const queueEntrySchema = new Schema(
 
 queueEntrySchema.index({ playerUuid: 1, serverAddress: 1, status: 1 });
 queueEntrySchema.index({ status: 1, createdAt: 1 });
+queueEntrySchema.index({ nodeId: 1, status: 1 });
 
 export type QueueEntryDoc = InferSchemaType<typeof queueEntrySchema>;
 export const QueueEntryModel = model("QueueEntry", queueEntrySchema);

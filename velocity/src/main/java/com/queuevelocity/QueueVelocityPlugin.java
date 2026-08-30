@@ -6,7 +6,9 @@ import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.LoginEvent;
 import com.velocitypowered.api.event.player.KickedFromServerEvent;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
+import com.velocitypowered.api.plugin.Dependency;
 import com.velocitypowered.api.plugin.Plugin;
+import com.velocitypowered.api.plugin.PluginContainer;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
@@ -19,23 +21,30 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
+import net.elytrium.limboapi.api.Limbo;
+import net.elytrium.limboapi.api.LimboFactory;
+import net.elytrium.limboapi.api.chunk.Dimension;
+import net.elytrium.limboapi.api.chunk.VirtualWorld;
+import net.elytrium.limboapi.api.player.GameMode;
+import net.elytrium.limboapi.api.player.LimboPlayer;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.title.Title;
 
-@Plugin(id = "queue-velocity", name = "Queue Velocity", version = "0.1.0")
+@Plugin(
+    id = "queue-velocity",
+    name = "Queue Velocity",
+    version = "0.1.0",
+    dependencies = { @Dependency(id = "limboapi") }
+)
 public final class QueueVelocityPlugin {
   private final ProxyServer proxy;
   private final Logger logger;
@@ -44,6 +53,7 @@ public final class QueueVelocityPlugin {
   private final Map<UUID, String> requestedHosts = new ConcurrentHashMap<>();
   private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
   private QueueConfig config;
+  private Limbo limbo;
 
   @Inject
   public QueueVelocityPlugin(ProxyServer proxy, Logger logger, @DataDirectory Path dataDirectory) {
@@ -59,9 +69,22 @@ public final class QueueVelocityPlugin {
     } catch (IOException error) {
       throw new IllegalStateException("Unable to load Queue Velocity configuration", error);
     }
+
+    LimboFactory limboFactory = (LimboFactory) proxy.getPluginManager()
+        .getPlugin("limboapi")
+        .flatMap(PluginContainer::getInstance)
+        .orElseThrow(() -> new IllegalStateException(
+            "LimboAPI is not installed. queue-velocity needs it to hold players during a queue."));
+
+    VirtualWorld queueWorld = limboFactory.createVirtualWorld(Dimension.OVERWORLD, 0.0, 100.0, 0.0, 0.0f, 0.0f);
+    this.limbo = limboFactory.createLimbo(queueWorld)
+        .setName(config.limboName())
+        .setWorldTime(6000L)
+        .setGameMode(GameMode.ADVENTURE);
+
     proxy.getScheduler().buildTask(this, this::pollSessions)
         .repeat(config.pollIntervalSeconds(), TimeUnit.SECONDS).schedule();
-    logger.info("Queue Velocity enabled; limbo=" + config.limboServer());
+    logger.info("Queue Velocity enabled; limbo=" + config.limboName());
   }
 
   @Subscribe
@@ -84,12 +107,10 @@ public final class QueueVelocityPlugin {
       logger.warning("Cannot queue " + player.getUsername() + ": no requested virtual host");
       return;
     }
-    Optional<RegisteredServer> limbo = proxy.getServer(config.limboServer());
-    if (limbo.isEmpty()) {
-      logger.severe("Configured limbo server is not registered: " + config.limboServer());
-      return;
-    }
-    event.setResult(KickedFromServerEvent.RedirectPlayer.create(limbo.get()));
+
+    // Keep the player attached to the proxy (no real backend) - LimboAPI
+    // spawns them into the virtual queue world in beginQueue() below.
+    event.setResult(KickedFromServerEvent.Notify.create(Component.empty()));
     beginQueue(player, serverAddress);
   }
 
@@ -110,7 +131,7 @@ public final class QueueVelocityPlugin {
     QueueSession existing = sessions.get(player.getUniqueId());
     if (existing != null && existing.serverAddress.equals(serverAddress)) {
       existing.player = player;
-      showWaitingUi(existing, "Resuming your queue...");
+      limbo.spawnPlayer(player, new QueueSessionHandler(this, existing, "Resuming your queue..."));
       return;
     }
     proxy.getScheduler().buildTask(this, () -> {
@@ -119,7 +140,7 @@ public final class QueueVelocityPlugin {
         QueueSession session = new QueueSession(player, serverAddress, state.queueId(), state);
         QueueSession replaced = sessions.put(player.getUniqueId(), session);
         if (replaced != null) cancel(replaced);
-        showWaitingUi(session, "Server starting...");
+        limbo.spawnPlayer(player, new QueueSessionHandler(this, session, "Server starting..."));
       } catch (Exception error) {
         logger.warning("Unable to create queue entry for " + player.getUsername() + ": " + error.getMessage());
         player.sendMessage(Component.text("Unable to join the startup queue. Please try again."));
@@ -154,6 +175,12 @@ public final class QueueVelocityPlugin {
       InetSocketAddress address = BackendAddress.parse(state.backend());
       RegisteredServer backend = proxy.getServer(session.serverAddress).orElseGet(() ->
           proxy.registerServer(new ServerInfo(session.serverAddress, address)));
+
+      LimboPlayer limboPlayer = session.limboPlayer;
+      if (limboPlayer != null) {
+        limboPlayer.disconnect();
+      }
+
       session.player.createConnectionRequest(backend).connect().thenAccept(result -> {
         if (result.isSuccessful()) removeSession(session);
         else failSession(session, "Server became unavailable. Please try again.");
@@ -163,7 +190,7 @@ public final class QueueVelocityPlugin {
     }
   }
 
-  private void showWaitingUi(QueueSession session, String title) {
+  void showWaitingUi(QueueSession session, String title) {
     QueueState state = session.state;
     String line = state.position() == null ? "Preparing your server..."
         : "Position #" + state.position() + " • Estimated wait: " + formatEta(state.estimatedWaitSeconds());

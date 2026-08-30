@@ -57,7 +57,11 @@ export async function getQueueState(queueId: string, defaultStartupSeconds: numb
 }
 
 /** Create or resume the player's active entry for this server. */
-export async function createOrResumeQueueEntry(serverAddress: string, playerUuid: string): Promise<QueueEntryDoc> {
+export async function createOrResumeQueueEntry(
+  serverAddress: string,
+  nodeId: string,
+  playerUuid: string,
+): Promise<QueueEntryDoc> {
   // If another player has already initiated this server, join that startup.
   const serverIsStarting = await QueueEntryModel.exists({ serverAddress, status: "starting" });
   const activeKey = `${serverAddress}\u0000${playerUuid}`;
@@ -66,6 +70,7 @@ export async function createOrResumeQueueEntry(serverAddress: string, playerUuid
     {
       $setOnInsert: {
         serverAddress,
+        nodeId,
         playerUuid,
         activeKey,
         status: serverIsStarting ? "starting" : "waiting",
@@ -75,6 +80,15 @@ export async function createOrResumeQueueEntry(serverAddress: string, playerUuid
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
   return entry;
+}
+
+/**
+ * True if another free-tier server on this node is already waiting for or
+ * starting on freed capacity. Used to stop a fresh connection from racing
+ * ahead of players who are already queued for the same node.
+ */
+export async function isNodeBusy(nodeId: string): Promise<boolean> {
+  return QueueEntryModel.exists({ nodeId, status: { $in: ACTIVE_STATUSES } }).then(Boolean);
 }
 
 export async function cancelQueueEntry(queueId: string): Promise<QueueEntryDoc | null> {
